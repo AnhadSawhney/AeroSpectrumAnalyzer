@@ -1,0 +1,13 @@
+//1:Input, 2:Output
+Port=2
+//0:Left, 1:Right, Surround Options - 2:Center, 3:Sub, 4:Back Left, 5:Back Right, 6:Sub Left, 7:Sub Right, Other - 8:Sum, 9:Average
+Channel=9
+//FFT Options
+Overlap=0
+Size=1024
+Attack=15
+Decay=250
+//Bands=19
+Minimum Frequency=20
+Maximum Frequency=20000
+Sensitivity=35.0
