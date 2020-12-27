@@ -194,7 +194,7 @@ HRESULT	DeviceInit() {
 	assert(m_enum && !m_dev);
 
 	// get the default ID
-	hr = m_enum->GetDefaultAudioEndpoint(m_port == PORT_OUTPUT ? eRender : eCapture, eConsole, &m_dev);
+	hr = m_enum->GetDefaultAudioEndpoint(m_port == PORT_OUTPUT ? eRender : eCapture, eMultimedia, &m_dev); //eConsole
 	
 	// store device name
 	IPropertyStore* props = NULL;
@@ -368,6 +368,10 @@ void Initialize() {
 		m_bandFreq[i] = 0;
 	}
 
+	LARGE_INTEGER pcFreq;
+	QueryPerformanceFrequency(&pcFreq);
+	m_pcMult = 1.0 / (double)pcFreq.QuadPart;
+
 	// create the enumerator
 	if (CoCreateInstance(CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, IID_IMMDeviceEnumerator, (void**)&m_enum) == S_OK) {
 		// init the device (ok if it fails - it'll keep checking during Update)
@@ -392,15 +396,20 @@ void Initialize() {
 void Update() {
 	LARGE_INTEGER	pcCur;
 	QueryPerformanceCounter(&pcCur);
+	//UINT32			n;
+	//m_clCapture->GetNextPacketSize(&n); //441
+	//std::cout << "in update\n" << n;
 
 	// query the buffer
 	if (m_clCapture && ((pcCur.QuadPart - m_pcPoll.QuadPart) * m_pcMult) >= QUERY_TIMEOUT) {
+		//std::cout << "Got clcapture\n";
 		BYTE* buffer;
 		UINT32			nFrames;
 		DWORD			flags;
 		UINT64			pos;
 		HRESULT			hr;
 		while ((hr = m_clCapture->GetBuffer(&buffer, &nFrames, &flags, &pos, NULL)) == S_OK) {
+			//std::cout << "Got buffer\n";
 			// measure RMS and peak levels
 			/*float		rms[Measure::MAX_CHANNELS];
 			float		peak[Measure::MAX_CHANNELS];
@@ -421,29 +430,6 @@ void Update() {
 						rms[1] = rms[0];
 						peak[1] = peak[0];
 					}
-				} else if (m_wfx->nChannels == 2) {
-					for (unsigned int iFrame = 0; iFrame < nFrames; ++iFrame) {
-						float xL = (float)*s++;
-						float xR = (float)*s++;
-						float sqrL = xL * xL;
-						float sqrR = xR * xR;
-						float absL = abs(xL);
-						float absR = abs(xR);
-						rms[0] = sqrL + m_kRMS[(sqrL < rms[0])] * (rms[0] - sqrL);
-						rms[1] = sqrR + m_kRMS[(sqrR < rms[1])] * (rms[1] - sqrR);
-						peak[0] = absL + m_kPeak[(absL < peak[0])] * (peak[0] - absL);
-						peak[1] = absR + m_kPeak[(absR < peak[1])] * (peak[1] - absR);
-					}
-				} else {
-					for (unsigned int iFrame = 0; iFrame < nFrames; ++iFrame) {
-						for (unsigned int iChan = 0; iChan < m_wfx->nChannels; ++iChan) {
-							float	x = (float)*s++;
-							float	sqrX = x * x;
-							float	absX = abs(x);
-							rms[iChan] = sqrX + m_kRMS[(sqrX < rms[iChan])] * (rms[iChan] - sqrX);
-							peak[iChan] = absX + m_kPeak[(absX < peak[iChan])] * (peak[iChan] - absX);
-						}
-					}
 				}
 			} else if (m_format == Measure::FMT_PCM_S16) {
 				INT16* s = (INT16*)buffer;
@@ -456,29 +442,6 @@ void Update() {
 						peak[0] = absL + m_kPeak[(absL < peak[0])] * (peak[0] - absL);
 						rms[1] = rms[0];
 						peak[1] = peak[0];
-					}
-				} else if (m_wfx->nChannels == 2) {
-					for (unsigned int iFrame = 0; iFrame < nFrames; ++iFrame) {
-						float xL = (float)*s++ * 1.0f / 0x7fff;
-						float xR = (float)*s++ * 1.0f / 0x7fff;
-						float sqrL = xL * xL;
-						float sqrR = xR * xR;
-						float absL = abs(xL);
-						float absR = abs(xR);
-						rms[0] = sqrL + m_kRMS[(sqrL < rms[0])] * (rms[0] - sqrL);
-						rms[1] = sqrR + m_kRMS[(sqrR < rms[1])] * (rms[1] - sqrR);
-						peak[0] = absL + m_kPeak[(absL < peak[0])] * (peak[0] - absL);
-						peak[1] = absR + m_kPeak[(absR < peak[1])] * (peak[1] - absR);
-					}
-				} else {
-					for (unsigned int iFrame = 0; iFrame < nFrames; ++iFrame) {
-						for (unsigned int iChan = 0; iChan < m_wfx->nChannels; ++iChan) {
-							float	x = (float)*s++ * 1.0f / 0x7fff;
-							float	sqrX = x * x;
-							float	absX = abs(x);
-							rms[iChan] = sqrX + m_kRMS[(sqrX < rms[iChan])] * (rms[iChan] - sqrX);
-							peak[iChan] = absX + m_kPeak[(absX < peak[iChan])] * (peak[iChan] - absX);
-						}
 					}
 				}
 			}
@@ -571,8 +534,7 @@ void Update() {
 			break;
 		}
 		m_pcPoll = pcCur;
-	}
-	else if (!m_clCapture && (((pcCur.QuadPart - m_pcPoll.QuadPart) * m_pcMult) >= DEVICE_TIMEOUT)) {
+	} else if (!m_clCapture && (((pcCur.QuadPart - m_pcPoll.QuadPart) * m_pcMult) >= DEVICE_TIMEOUT)) {
 		// poll for new devices
 		assert(m_enum);
 		assert(!m_dev);
@@ -626,47 +588,98 @@ void Update() {
 }
 
 
+void PrintEndpointNames() {
+	HRESULT hr = S_OK;
+	IMMDeviceEnumerator* m_enum = NULL;
+	IMMDeviceCollection* pCollection = NULL;
+	IMMDevice* m_dev = NULL;
+	IPropertyStore* pProps = NULL;
+	LPWSTR pwszID = NULL;
+
+	hr = CoCreateInstance(
+		CLSID_MMDeviceEnumerator, NULL,
+		CLSCTX_ALL, IID_IMMDeviceEnumerator,
+		(void**)&m_enum);
+	EXIT_ON_ERROR(hr)
+
+		hr = m_enum->EnumAudioEndpoints(
+			eRender, DEVICE_STATE_ACTIVE,
+			&pCollection);
+	EXIT_ON_ERROR(hr)
+
+		UINT  count;
+	hr = pCollection->GetCount(&count);
+	EXIT_ON_ERROR(hr)
+
+		if (count == 0)
+		{
+			printf("No endpoints found.\n");
+		}
+
+	// Each loop prints the name of an endpoint device.
+	for (ULONG i = 0; i < count; i++)
+	{
+		// Get pointer to endpoint number i.
+		hr = pCollection->Item(i, &m_dev);
+		EXIT_ON_ERROR(hr)
+
+			// Get the endpoint ID string.
+			hr = m_dev->GetId(&pwszID);
+		EXIT_ON_ERROR(hr)
+
+			hr = m_dev->OpenPropertyStore(
+				STGM_READ, &pProps);
+		EXIT_ON_ERROR(hr)
+
+			PROPVARIANT varName;
+		// Initialize container for property value.
+		PropVariantInit(&varName);
+
+		// Get the endpoint's friendly-name property.
+		hr = pProps->GetValue(
+			PKEY_Device_FriendlyName, &varName);
+		EXIT_ON_ERROR(hr)
+
+			// Print endpoint friendly name and endpoint ID.
+			printf("Endpoint %d: \"%S\" (%S)\n",
+				i, varName.pwszVal, pwszID);
+
+		CoTaskMemFree(pwszID);
+		pwszID = NULL;
+		PropVariantClear(&varName);
+		SAFE_RELEASE(pProps)
+			SAFE_RELEASE(m_dev)
+	}
+	SAFE_RELEASE(m_enum)
+		SAFE_RELEASE(pCollection)
+		return;
+
+Exit:
+	printf("Error!\n");
+	CoTaskMemFree(pwszID);
+	SAFE_RELEASE(m_enum)
+		SAFE_RELEASE(pCollection)
+		SAFE_RELEASE(m_dev)
+		SAFE_RELEASE(pProps)
+}
+
+
 int main() {
 	CoInitialize(nullptr); // NULL if using older VC++
 	Initialize();
-	Update();
+	
+	PrintEndpointNames();
 
-	std::cout << m_devName;
+	printf("Selected Endpoint: \"%S\"\n", m_devName);
 
-	/*while (1) {
+	while (1) {
 		Update();
 		for (int i = 0; i < BANDS; i++) {
 			float& y = m_bandOut[i];
 			std::cout << y << ",";
 		}
 		std::cout << std::endl;
-	}*/
+	}
 
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-/*#include "measure.h"
-
-int main() {
-	Options* o = new Options("Options.txt");
-	Measure* m = new Measure(o);
-	
-	while (1) {
-		m->Update();
-		for (int i = 0; i < BANDS; i++) {
-			float& y = m->m_bandOut[i];
-			std::cout << y << ",";
-		}
-		std::cout << std::endl;
-	}
-
-    return 0;
-}*/
