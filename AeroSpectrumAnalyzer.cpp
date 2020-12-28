@@ -40,7 +40,9 @@
 #define EMPTY_TIMEOUT			0.500
 #define DEVICE_TIMEOUT			1.500
 #define QUERY_TIMEOUT			(1.0/60)
-#define BANDS 84
+#define xres 128
+#define yres 64
+#define BANDS 128
 
 enum Port {
 	PORT_OUTPUT,
@@ -664,6 +666,64 @@ Exit:
 }
 
 
+void textBars() {
+	HANDLE hStdout;
+
+	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	system("cls");
+
+	CONSOLE_SCREEN_BUFFER_INFO screenBufferInfo = {};
+	SMALL_RECT window;
+	COORD writePos;
+
+	GetConsoleScreenBufferInfo(hStdout, &screenBufferInfo);
+	window = screenBufferInfo.srWindow;
+
+	float max = 0;
+
+	for (int i = 1; i < BANDS; ++i) {
+		if (m_bandOut[i] > max) {
+			max = m_bandOut[i];
+		}
+	}
+
+	for (SHORT i = 1; i < BANDS; ++i) {
+		for (SHORT j = 0; j <= m_bandOut[i] / max * 10; ++j) {
+			writePos = { window.Left + i, window.Bottom - j };
+			SetConsoleCursorPosition(hStdout, writePos);
+			std::cout << "#";
+		}
+	}
+}
+
+void drawArray(COLORREF* cref) {
+	HDC hdc = GetDC(NULL);
+	HDC src = CreateCompatibleDC(hdc); // hdc - Device context for window, I've got earlier with GetDC(hWnd) or GetDC(NULL);
+	// Creating temp bitmap
+	HBITMAP map = CreateBitmap(xres, // width. 512 in my case
+		yres, // height
+		1, // Color Planes, unfortanutelly don't know what is it actually. Let it be 1
+		8 * 4, // Size of memory for one pixel in bits (in win32 4 bytes = 4*8 bits)
+		(void*)cref); // pointer to array
+	SelectObject(src, map); // Inserting picture into our temp HDC
+	// Copy image from temp HDC to window
+	BitBlt(hdc, // Destination
+		10,  // x and
+		10,  // y - upper-left corner of place, where we'd like to copy
+		xres, // width of the region
+		yres, // height
+		src, // source
+		0,   // x and
+		0,   // y of upper left corner  of part of the source, from where we'd like to copy
+		SRCCOPY); // Defined DWORD to juct copy pixels. Watch more on msdn;
+
+	//clean up
+	DeleteObject(map);
+	DeleteDC(hdc);
+	DeleteDC(src);
+}
+
 int main() {
 	CoInitialize(nullptr); // NULL if using older VC++
 	Initialize();
@@ -672,21 +732,12 @@ int main() {
 
 	//printf("Selected Endpoint: \"%S\"\n", m_devName);
 
+	char R[xres][yres][3];
+
+	COLORREF* cref = (COLORREF*)calloc(xres * yres, sizeof(COLORREF));
+
 	while (1) {
 		Update();
-
-		HANDLE hStdout;
-
-		hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
-
-		system("cls");
-
-		CONSOLE_SCREEN_BUFFER_INFO screenBufferInfo = {};
-		SMALL_RECT window;
-		COORD writePos;
-
-		GetConsoleScreenBufferInfo(hStdout, &screenBufferInfo);
-		window = screenBufferInfo.srWindow;
 
 		float max = 0;
 
@@ -696,17 +747,27 @@ int main() {
 			}
 		}
 
-		for (SHORT i = 1; i < BANDS; ++i) {
-			for (SHORT j = 0; j <= m_bandOut[i]/max*10; ++j) {
-				writePos = { window.Left + i, window.Bottom - j};
-				SetConsoleCursorPosition(hStdout, writePos);
-				std::cout << "#";
+		std::cout << max << std::endl;
+
+		for (int i = 0; i < BANDS; i++) {
+			int j = 0;
+			for (; j < m_bandOut[i] / max * yres; j++) {
+				R[i][j][0] = 255; //BGR
+				R[i][j][1] = 0;
+				R[i][j][2] = 0;
+			}
+			for (; j < yres; j++) {
+				R[i][j][0] = 0;
+				R[i][j][1] = 0;
+				R[i][j][2] = 0;
 			}
 		}
 
-		writePos = { window.Left, window.Bottom };
-		SetConsoleCursorPosition(hStdout, writePos);
-		//std::cout << additional_text << std::endl << max;
+		for (int j = 0; j < yres; j++)
+			for (int i = 0; i < xres; i++)
+				cref[(yres-j-1) * xres + i] = RGB(R[i][j][0], R[i][j][1], R[i][j][2]);
+
+		drawArray(cref);
 	}
 
 	CoUninitialize();
