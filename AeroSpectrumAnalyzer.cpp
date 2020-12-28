@@ -40,7 +40,7 @@
 #define EMPTY_TIMEOUT			0.500
 #define DEVICE_TIMEOUT			1.500
 #define QUERY_TIMEOUT			(1.0/60)
-#define BANDS 19
+#define BANDS 84
 
 enum Port {
 	PORT_OUTPUT,
@@ -102,7 +102,7 @@ int						m_fftOverlap = 0;				// number of samples between FFT calculations, bet
 //double					m_gainPeak;					// peak gain (parsed from options)
 double					m_freqMin = 20;					// min freq for band measurement
 double					m_freqMax = 20000;					// max freq for band measurement
-double					m_sensitivity = 35.0;				// dB range for FFT/Band return values (parsed from options), min 1
+double					m_sensitivity = 100.0;				// dB range for FFT/Band return values (parsed from options), min 1
 
 IMMDeviceEnumerator* m_enum;						// audio endpoint enumerator
 IMMDevice* m_dev;						// audio endpoint device
@@ -668,18 +668,53 @@ int main() {
 	CoInitialize(nullptr); // NULL if using older VC++
 	Initialize();
 	
-	PrintEndpointNames();
+	//PrintEndpointNames();
 
-	printf("Selected Endpoint: \"%S\"\n", m_devName);
+	//printf("Selected Endpoint: \"%S\"\n", m_devName);
 
 	while (1) {
 		Update();
-		for (int i = 0; i < BANDS; i++) {
-			float& y = m_bandOut[i];
-			std::cout << y << ",";
+
+		HANDLE hStdout;
+
+		hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+
+		system("cls");
+
+		CONSOLE_SCREEN_BUFFER_INFO screenBufferInfo = {};
+		SMALL_RECT window;
+		COORD writePos;
+
+		GetConsoleScreenBufferInfo(hStdout, &screenBufferInfo);
+		window = screenBufferInfo.srWindow;
+
+		float max = 0;
+
+		for (int i = 1; i < BANDS; ++i) {
+			if (m_bandOut[i] > max) {
+				max = m_bandOut[i];
+			}
 		}
-		std::cout << std::endl;
+
+		for (SHORT i = 1; i < BANDS; ++i) {
+			for (SHORT j = 0; j <= m_bandOut[i]/max*10; ++j) {
+				writePos = { window.Left + i, window.Bottom - j};
+				SetConsoleCursorPosition(hStdout, writePos);
+				std::cout << "#";
+			}
+		}
+
+		writePos = { window.Left, window.Bottom };
+		SetConsoleCursorPosition(hStdout, writePos);
+		//std::cout << additional_text << std::endl << max;
 	}
 
+	CoUninitialize();
 	return 0;
 }
+
+
+
+
+
+
