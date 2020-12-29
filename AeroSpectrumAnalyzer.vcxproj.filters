@@ -26,12 +26,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="measure.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="options.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="kiss_fft130\_kiss_fft_guts.h">
       <Filter>Header Files</Filter>
     </ClInclude>

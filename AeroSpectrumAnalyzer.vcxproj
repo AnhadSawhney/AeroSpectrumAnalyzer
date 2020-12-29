@@ -156,8 +156,6 @@
     <ClInclude Include="kiss_fft130\kiss_fft.h" />
     <ClInclude Include="kiss_fft130\kiss_fftr.h" />
     <ClInclude Include="kiss_fft130\_kiss_fft_guts.h" />
-    <ClInclude Include="measure.h" />
-    <ClInclude Include="options.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="kiss_fft130\CHANGELOG" />

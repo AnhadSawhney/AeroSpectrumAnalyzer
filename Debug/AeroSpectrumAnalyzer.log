@@ -1,3 +1,3 @@
 ﻿  AeroSpectrumAnalyzer.cpp
-C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer.cpp(755,18): warning C4309: '=': truncation of constant value
+C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer.cpp(640,18): warning C4309: '=': truncation of constant value
   AeroSpectrumAnalyzer.vcxproj -> C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\Debug\AeroSpectrumAnalyzer.exe
