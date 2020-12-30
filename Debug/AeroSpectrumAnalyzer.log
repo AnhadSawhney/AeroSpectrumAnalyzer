@@ -1,3 +1,5 @@
 ﻿  AeroSpectrumAnalyzer.cpp
-C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer.cpp(640,18): warning C4309: '=': truncation of constant value
+C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer.cpp(655,13): warning C4244: 'argument': conversion from 'float' to 'int', possible loss of data
+C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer.cpp(661,18): warning C4309: '=': truncation of constant value
+C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer\AeroSpectrumAnalyzer.cpp(666,33): warning C4309: '=': truncation of constant value
   AeroSpectrumAnalyzer.vcxproj -> C:\Users\Anhad\source\repos\AeroSpectrumAnalyzer\Debug\AeroSpectrumAnalyzer.exe

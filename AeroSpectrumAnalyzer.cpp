@@ -40,9 +40,9 @@
 #define EMPTY_TIMEOUT			0.500
 #define DEVICE_TIMEOUT			1.500
 #define QUERY_TIMEOUT			(1.0/60)
-#define xres 64
+#define xres 128
 #define yres 64
-#define BANDS 256
+#define BANDS 128
 
 enum Port {
 	PORT_OUTPUT,
@@ -80,9 +80,9 @@ Port					m_port = PORT_OUTPUT;						// port specifier (parsed from options)
 //Type					m_type = TYPE_FFT;						// data type specifier (parsed from options)
 Format					m_format = FMT_PCM_F32;					// format specifier (detected in init)
 int						m_envFFT[2] = { 25,250 };				// FFT attack/decay times in ms (parsed from options), 15, 250
-int						m_fftSize = 256;					// size of FFT (parsed from options), powers of 2 work best
+int						m_fftSize = 512;					// size of FFT (parsed from options), powers of 2 work best
 int						m_fftOverlap = 0;				// number of samples between FFT calculations, between 0 and fftSize
-double					m_freqMin = 20;					// min freq for band measurement
+double					m_freqMin = 100;					// min freq for band measurement
 double					m_freqMax = 10000;					// max freq for band measurement
 double					m_sensitivity = 100.0;				// dB range for FFT/Band return values (parsed from options), min 1
 
@@ -412,30 +412,6 @@ void Update() {
 					m_fftBufP = m_fftSize - m_fftOverlap;
 				}
 
-				// integrate FFT results into log-scale frequency bands
-				const float		df = (float)m_wfx->nSamplesPerSec / m_fftSize;
-				const float		scalar = 2.0f / (float)m_wfx->nSamplesPerSec;
-				memset(m_bandOut, 0, BANDS * sizeof(float));
-				int			iBin = 0;
-				int			iBand = 0;
-				float		f0 = 0.0f;
-				while (iBin <= (m_fftSize / 2) && iBand < BANDS) {
-					float	fLin1 = ((float)iBin + 0.5f) * df;
-					float	fLog1 = m_bandFreq[iBand];
-					float	x = (m_fftOut)[iBin];
-					float& y = (m_bandOut)[iBand];
-					if (fLin1 <= fLog1) {
-						y += (fLin1 - f0) * x * scalar;
-						f0 = fLin1;
-						iBin += 1;
-					}
-					else {
-						y += (fLog1 - f0) * x * scalar;
-						f0 = fLog1;
-						iBand += 1;
-					}
-				}
-
 				// release the buffer
 				m_clCapture->ReleaseBuffer(nFrames);
 
@@ -618,34 +594,76 @@ int main() {
 	char R[xres][yres][3];
 
 	COLORREF* cref = (COLORREF*)calloc(xres * yres, sizeof(COLORREF));
+	
+	float bars[BANDS];
 
 	while (1) {
 		Update();
 
-		float max = 0;
+		float avg = 0;
 
-		for (int i = 1; i < xres; ++i) {
-			if (m_fftOut[i] > max) {
-				max = m_fftOut[i];
+		for (int i = 1; i < BANDS; ++i) {
+			//amplitude log scale
+			bars[i] = log10(m_fftOut[i] + 1);
+
+			//if (k > max) {
+			avg += bars[i];
+			//}
+		}
+
+		avg /= BANDS-1;
+
+		//std::cout << avg << std::endl;
+
+		// integrate FFT results into log-scale frequency bands
+		const float		df = (float)m_wfx->nSamplesPerSec / m_fftSize;
+		const float		scalar = 2.0f / (float)m_wfx->nSamplesPerSec;
+		memset(m_bandOut, 0, BANDS * sizeof(float));
+		int			iBin = 0;
+		int			iBand = 0;
+		float		f0 = 0.0f;
+		while (iBin <= (m_fftSize / 2) && iBand < BANDS) {
+			float	fLin1 = ((float)iBin + 0.5f) * df;
+			float	fLog1 = m_bandFreq[iBand];
+			float	x = m_fftOut[iBin];
+			float& y = (m_bandOut)[iBand];
+			if (fLin1 <= fLog1) {
+				y += (fLin1 - f0) * x * scalar;
+				f0 = fLin1;
+				iBin++;
+			}
+			else {
+				y += (fLog1 - f0) * x * scalar;
+				f0 = fLog1;
+				iBand++;
 			}
 		}
 
-		max = 2;
+		//DRAW
+
+		float max = 0;
+
+		for (int i = 1; i < BANDS; ++i) {
+			if (m_bandOut[i] > max) {
+				max = m_bandOut[i];
+			}
+		}
 
 		std::cout << max << std::endl;
 
+		//clear
+		memset(R, 0.0f, xres * yres * 3 * sizeof(R[0][0][0]));
+
 		for (int i = 0; i < xres; i++) {
 			int j = 0;
-			for (; j < m_fftOut[i] / max * yres && j < yres; j++) {
+
+			for (; j < m_bandOut[i]/ max * yres && j < yres; j++) {
 				R[i][j][0] = 255; //BGR
 				R[i][j][1] = 0;
 				R[i][j][2] = 0;
 			}
-			for (; j < yres; j++) {
-				R[i][j][0] = 0;
-				R[i][j][1] = 0;
-				R[i][j][2] = 0;
-			}
+
+			R[i][(int)(avg * xres)][1] = 255;
 		}
 
 		for (int j = 0; j < yres; j++)
